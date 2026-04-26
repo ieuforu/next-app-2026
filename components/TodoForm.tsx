@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useOptimistic, useRef, useTransition } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   createTodo,
   type ActionState,
@@ -46,7 +47,7 @@ export function TodoForm({ initialTodos }: { initialTodos: Todo[] }) {
       switch (action) {
         case 'add':
           return [
-            { id: Date.now(), content: payload, completed: false, createdAt: new Date() },
+            { id: payload.id, content: payload.content, completed: false, createdAt: new Date() },
             ...state,
           ]
         case 'toggle':
@@ -68,7 +69,8 @@ export function TodoForm({ initialTodos }: { initialTodos: Todo[] }) {
       toast.warning('起码写两个字吧？')
       return
     }
-    addOptimisticTodo({ action: 'add', payload: content })
+    const tempId = `temp-${Date.now()}`
+    addOptimisticTodo({ action: 'add', payload: { content, id: tempId } })
     formRef.current?.reset()
     await formAction(formData)
   }
@@ -115,37 +117,54 @@ export function TodoForm({ initialTodos }: { initialTodos: Todo[] }) {
       </div>
 
       <div className="flex-1 py-4">
-        <ul className="divide-y divide-zinc-900/50">
-          {optimisticTodos.map((todo) => (
-            <li key={todo.id} className="flex items-center justify-between group py-4 px-1">
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => handleToggle(todo.id, !!todo.completed)}
-                  className="transition-transform active:scale-90"
-                >
-                  {todo.completed ? (
-                    <CheckCircle2 className="w-5 h-5 text-zinc-400" />
-                  ) : (
-                    <Circle className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400" />
-                  )}
-                </button>
-                <span
-                  className={`text-base transition-all duration-300 ${
-                    todo.completed ? 'line-through text-zinc-600' : 'text-zinc-200'
-                  }`}
-                >
-                  {todo.content}
-                </span>
-              </div>
-
-              <button
-                onClick={() => handleDelete(todo.id)}
-                className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-900 transition-all"
+        <ul className="relative divide-y divide-zinc-900/50">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {optimisticTodos.map((todo) => (
+              <motion.li
+                key={todo.content}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, x: 20, scale: 0.95 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 400,
+                  damping: 40,
+                  opacity: { duration: 0.2 },
+                }}
+                className="flex items-center justify-between group py-4 px-1 bg-background"
               >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </li>
-          ))}
+                <div className="flex items-center gap-4">
+                  <button onClick={() => handleToggle(todo.id, !!todo.completed)}>
+                    <motion.div
+                      initial={false}
+                      animate={{ scale: todo.completed ? [1, 1.2, 1] : 1 }}
+                    >
+                      {todo.completed ? (
+                        <CheckCircle2 className="w-5 h-5 text-zinc-400" />
+                      ) : (
+                        <Circle className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400" />
+                      )}
+                    </motion.div>
+                  </button>
+                  <span
+                    className={`text-base transition-all duration-500 ${
+                      todo.completed ? 'line-through text-zinc-600' : 'text-zinc-200'
+                    }`}
+                  >
+                    {todo.content}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => handleDelete(todo.id)}
+                  className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-900 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </motion.li>
+            ))}
+          </AnimatePresence>
         </ul>
       </div>
 
