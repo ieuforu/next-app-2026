@@ -1,10 +1,10 @@
 import { InferInsertModel, InferSelectModel } from 'drizzle-orm'
-import { mysqlTable, serial, varchar, timestamp } from 'drizzle-orm/mysql-core'
+import { mysqlTable, serial, varchar, timestamp, boolean } from 'drizzle-orm/mysql-core'
 
 export const todos = mysqlTable('todos', {
   id: serial('id').primaryKey(),
   content: varchar('content', { length: 50 }).notNull(),
-  completed: varchar('completed', { length: 10 }).default('false'),
+  completed: boolean('completed').default(false),
   createdAt: timestamp('created_at').defaultNow(),
 })
 

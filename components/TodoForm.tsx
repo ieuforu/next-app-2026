@@ -1,21 +1,17 @@
 'use client'
 
 import { useActionState, useEffect, useOptimistic, useRef, useTransition } from 'react'
-import { clearAllTodos, createTodo, type ActionState } from '@/app/actions'
-import { Button } from '@/components/ui/button'
 import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog'
+  createTodo,
+  type ActionState,
+  toggleTodoAction,
+  deleteTodoAction,
+  clearCompletedAction,
+} from '@/app/actions'
+import { Button } from '@/components/ui/button'
+
 import { toast } from 'sonner'
-import { Trash2Icon } from 'lucide-react'
+import { Trash2, CheckCircle2, Circle, Eraser } from 'lucide-react'
 import { useFormStatus } from 'react-dom'
 import type { Todo } from '@/db/schema'
 
@@ -23,8 +19,8 @@ function SubmitButton() {
   const { pending } = useFormStatus()
 
   return (
-    <Button className="w-24 h-12" type="submit" disabled={pending}>
-      <span className="flex items-center justify-center w-full">{pending ? '添加中' : '添加'}</span>
+    <Button disabled={pending} variant="ghost" className="hover:bg-gray-100 hover:cursor-pointer">
+      Push
     </Button>
   )
 }
@@ -33,113 +29,140 @@ export function TodoForm({ initialTodos }: { initialTodos: Todo[] }) {
   const formRef = useRef<HTMLFormElement>(null)
   const initialState: ActionState = { error: null, success: false }
 
-  const [state, formAction, _] = useActionState(createTodo, initialState)
+  const [state, formAction] = useActionState(createTodo, initialState)
 
   useEffect(() => {
     if (state.error) {
       toast.error(state.error)
     }
     if (state.success) {
-      toast('任务添加成功！')
+      toast.success('已添加任务')
     }
   }, [state])
 
   const [optimisticTodos, addOptimisticTodo] = useOptimistic(
     initialTodos,
-    (state, newTodoContent: string) => [
-      { id: Date.now(), content: newTodoContent, completed: 'false', createdAt: new Date() },
-      ...state,
-    ],
+    (state, { action, payload }) => {
+      switch (action) {
+        case 'add':
+          return [
+            { id: Date.now(), content: payload, completed: false, createdAt: new Date() },
+            ...state,
+          ]
+        case 'toggle':
+          return state.map((t) => (t.id === payload.id ? { ...t, completed: !t.completed } : t))
+        case 'delete':
+          return state.filter((t) => t.id !== payload.id)
+        case 'clear-completed':
+          return state.filter((t) => !t.completed)
+        default:
+          return state
+      }
+    },
   )
 
   const handleSubmit = async (formData: FormData) => {
     const content = formData.get('content') as string
-    if (!content) return
+    if (!content.trim()) return
     if (content.length < 2) {
       toast.warning('起码写两个字吧？')
       return
     }
-    addOptimisticTodo(content)
-
+    addOptimisticTodo({ action: 'add', payload: content })
     formRef.current?.reset()
-
     await formAction(formData)
   }
 
-  const [isPendingClear, startTransition] = useTransition()
+  const [_, startTransition] = useTransition()
 
-  const handleClear = () => {
+  const handleToggle = (id: number, completed: boolean) => {
     startTransition(async () => {
-      await clearAllTodos()
+      addOptimisticTodo({ action: 'toggle', payload: { id } })
+      await toggleTodoAction(id, !completed)
     })
   }
 
+  const handleDelete = (id: number) => {
+    startTransition(async () => {
+      addOptimisticTodo({ action: 'delete', payload: { id } })
+      await deleteTodoAction(id)
+      toast.error('任务已删除')
+    })
+  }
+
+  const handleClearCompleted = () => {
+    startTransition(async () => {
+      addOptimisticTodo({ action: 'clear-completed', payload: null })
+      await clearCompletedAction()
+      toast.info('已清理所有完成项')
+    })
+  }
+
+  const completedCount = optimisticTodos.filter((t) => t.completed).length
+
   return (
-    <div>
-      <form ref={formRef} action={handleSubmit} className="flex gap-2 mb-8 items-start">
-        <input
-          name="content"
-          autoComplete="off"
-          className="flex-1 h-12 px-4 rounded-lg border bg-background outline-none focus:ring-2 focus:ring-primary/20 transition-all"
-          placeholder="添加任务..."
-        />
-        <div className="flex gap-4 shrink-0">
+    <div className="flex flex-col min-h-100">
+      <div className="h-20 flex items-center bg-background/50 sticky top-0 z-10 backdrop-blur-sm">
+        <form ref={formRef} action={handleSubmit} className="flex gap-4 w-full items-center">
+          <input
+            name="content"
+            autoComplete="off"
+            placeholder="有什么新计划？"
+            className="flex-1 bg-transparent border-b border-zinc-800 focus:border-zinc-500 outline-none px-1 py-2 text-lg transition-all placeholder:text-zinc-700"
+          />
           <SubmitButton />
+        </form>
+      </div>
 
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                type="button"
-                className="w-24 h-12"
-                variant="destructive"
-                disabled={isPendingClear}
+      <div className="flex-1 py-4">
+        <ul className="divide-y divide-zinc-900/50">
+          {optimisticTodos.map((todo) => (
+            <li key={todo.id} className="flex items-center justify-between group py-4 px-1">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => handleToggle(todo.id, !!todo.completed)}
+                  className="transition-transform active:scale-90"
+                >
+                  {todo.completed ? (
+                    <CheckCircle2 className="w-5 h-5 text-zinc-400" />
+                  ) : (
+                    <Circle className="w-5 h-5 text-zinc-600 group-hover:text-zinc-400" />
+                  )}
+                </button>
+                <span
+                  className={`text-base transition-all duration-300 ${
+                    todo.completed ? 'line-through text-zinc-600' : 'text-zinc-200'
+                  }`}
+                >
+                  {todo.content}
+                </span>
+              </div>
+
+              <button
+                onClick={() => handleDelete(todo.id)}
+                className="opacity-0 group-hover:opacity-100 p-2 text-zinc-700 hover:text-red-900 transition-all"
               >
-                <span className="flex items-center justify-center w-full">
-                  {isPendingClear ? '清空中...' : '清空'}
-                </span>
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent size="sm">
-              <AlertDialogHeader>
-                <AlertDialogMedia className="bg-destructive/10 text-destructive dark:bg-destructive/20 dark:text-destructive">
-                  <Trash2Icon />
-                </AlertDialogMedia>
-                <AlertDialogTitle>确定要清空吗？</AlertDialogTitle>
-                <AlertDialogDescription>此操作不可撤销</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel variant="outline">取消</AlertDialogCancel>
-
-                <AlertDialogCancel variant="destructive" onClick={handleClear}>
-                  确定
-                </AlertDialogCancel>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </form>
-
-      <ul className="space-y-3">
-        {optimisticTodos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground border-2 border-dashed rounded-xl">
-            <p>还没有任务，喝杯咖啡吧 ☕️</p>
-          </div>
-        ) : (
-          optimisticTodos.map((todo) => (
-            <li
-              key={todo.id}
-              className="flex h-18 items-center justify-between p-4 rounded-xl border bg-card shadow-sm transition-all duration-200"
-            >
-              <span className="truncate mr-4">{todo.content}</span>
-              <Button variant="outline" size="sm" className="w-15 shrink-0" disabled>
-                <span className="flex items-center justify-center w-full">
-                  {todo.id.toString().startsWith('temp-') ? '同步中' : '待办'}
-                </span>
-              </Button>
+                <Trash2 className="w-4 h-4" />
+              </button>
             </li>
-          ))
-        )}
-      </ul>
+          ))}
+        </ul>
+      </div>
+
+      <div className="h-12 flex items-center justify-between border-t border-zinc-900 text-[10px] uppercase tracking-widest text-zinc-600 px-1 mt-auto">
+        <div>{optimisticTodos.length} items total</div>
+        <div className="flex gap-4">
+          {completedCount > 0 && (
+            <button
+              onClick={handleClearCompleted}
+              className="flex items-center gap-1 hover:text-zinc-300 transition-colors"
+            >
+              <Eraser className="w-3 h-3" />
+              Clear Completed ({completedCount})
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

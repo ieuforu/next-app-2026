@@ -2,6 +2,7 @@
 
 import { db } from '@/db'
 import { todos } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 import { createInsertSchema } from 'drizzle-zod'
 import { revalidatePath } from 'next/cache'
 import z from 'zod'
@@ -42,4 +43,37 @@ export async function createTodo(prevState: ActionState, formData: FormData): Pr
 export async function clearAllTodos() {
   await db.delete(todos)
   revalidatePath('/')
+}
+
+export async function toggleTodoAction(id: number, completed: boolean) {
+  try {
+    await db.update(todos).set({ completed }).where(eq(todos.id, id))
+
+    revalidatePath('/')
+    return { success: true }
+  } catch (e) {
+    return { error: '更新失败: ' + e }
+  }
+}
+
+export async function deleteTodoAction(id: number) {
+  try {
+    await db.delete(todos).where(eq(todos.id, id))
+
+    revalidatePath('/')
+    return { success: true }
+  } catch (e) {
+    return { error: '删除失败: ' + e }
+  }
+}
+
+export async function clearCompletedAction() {
+  try {
+    await db.delete(todos).where(eq(todos.completed, true))
+
+    revalidatePath('/')
+    return { success: true }
+  } catch (e) {
+    return { error: '清理失败: ' + e }
+  }
 }

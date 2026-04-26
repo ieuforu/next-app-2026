@@ -1,13 +1,7 @@
 import type { Metadata } from 'next'
-import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { cn } from '@/lib/utils'
-import { RscBoundaryProvider } from 'rsc-boundary'
 import { Toaster } from '@/components/ui/sonner'
-
-const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
   title: 'Next.js App',
@@ -19,23 +13,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  const isDev = process.env.NODE_ENV === 'development'
-
   return (
-    <html
-      lang="en"
-      className={cn(
-        'h-full',
-        'antialiased',
-        'font-sans',
-        inter.variable,
-        'font-mono',
-        jetbrainsMono.variable,
-      )}
-    >
+    <html lang="en" className={cn('h-full', 'antialiased', 'font-sans', 'font-mono')}>
       <body className="min-h-full flex flex-col">
         <Toaster position="top-center" />
-        {isDev ? <RscBoundaryProvider>{children}</RscBoundaryProvider> : children}
+        {children}
       </body>
     </html>
   )
